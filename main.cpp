@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <unistd.h>
 #include <map>
 #include <vector>
 #include "RtMidi.h"
@@ -163,7 +164,21 @@ int generic_handler(const char *path, const char *types, lo_arg **argv, int argc
     return 0;
 }
 
+char read_stdin(void) {
+    char buf[256];
+    int len = read(0, buf, 256);
+    if (len > 0) {
+        return buf[0];
+    } else {
+        return 0;
+    }
+}
+
 int main(int argc, char* argv[]) {
+    int retval;
+    int done = 0;
+    int lo_fd;
+    fd_set rfds;
     vector<MidiInput*> inputs;
     vector<int> portList;
     vector<int>::iterator portIterator;
@@ -197,15 +212,22 @@ int main(int argc, char* argv[]) {
     stringstream ss;
     ss << opt->inputPort;
 
-    lo_server_thread st = lo_server_thread_new(ss.str().c_str(), error);
-    lo_server_thread_add_method(st, NULL, NULL, generic_handler, &portMap);
-    lo_server_thread_start(st);
+    cout << "Creating server" << endl;
+    lo_server server = lo_server_new(ss.str().c_str(), error);
+    lo_server_add_method(server, NULL, NULL, generic_handler, &portMap);
+    lo_fd = lo_server_get_socket_fd(server);
+    if (lo_fd == 0) {
+        /* could get fd for lo socket */
+        cout << "Unable to get file descriptor for liblo socket." << endl;
+        exit(1);
+    }
+    cout << endl << "Reading MIDI input ... press <enter> to quit." << endl;
+    do {
+        lo_server_recv_noblock(server, 0);
+    } while(!done);
+    cout << "Cleaning up" << endl;
 
     delete opt;
-
-    cout << endl << "Reading MIDI input ... press <enter> to quit." << endl;
-    char input;
-    cin.get(input);
 
     for (inputIterator = inputs.begin(); inputIterator < inputs.end(); inputIterator++) {
         delete *inputIterator;

@@ -11,6 +11,6 @@ else:
     env = Environment(
         CCFLAGS = '-D__LINUX_ALSASEQ__'
     )
-    libs.append(['asound', 'pthread'])
+    libs.append(['asound'])
 
 env.Program('midiosc', ['main.cpp', 'midiinput.cpp', 'RtMidi.cpp', 'anyoption.cpp', 'options.cpp'], LIBS=libs)
