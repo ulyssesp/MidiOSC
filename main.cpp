@@ -21,11 +21,21 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <functional>
 #include "RtMidi.h"
 #include "midiinput.h"
 #include "options.h"
 
+#if defined(__WINDOWS_MM__)
+
+#include "winsock2.h"
+#include "tinyosc.h"
+
+#else
+
 #include "lo/lo.h"
+
+#endif
 
 using namespace std;
 
@@ -126,42 +136,42 @@ void stringReplace(string* str) {
     replace_if(str->begin(), str->end(), bind2nd(equal_to<char>(), '_'), ' ');
 }
 
-int generic_handler(const char *path, const char *types, lo_arg **argv, int argc, void *data, void *user_data) {
-    vector<unsigned char> msg;
-    map<string, RtMidiOut*>::iterator it;
-    map<string, int> stringToStatus = populateMap();
+// int generic_handler(const char *path, const char *types, lo_arg **argv, int argc, void *data, void *user_data) {
+//     vector<unsigned char> msg;
+//     map<string, RtMidiOut*>::iterator it;
+//     map<string, int> stringToStatus = populateMap();
 
-    string pathString = path;
-    vector<string>pathTokenized;
-    tokenize(pathString, pathTokenized, "/");
-    if(pathTokenized[0].compare("midi") != 0) {
-        return 1;
-    }
+//     string pathString = path;
+//     vector<string>pathTokenized;
+//     tokenize(pathString, pathTokenized, "/");
+//     if(pathTokenized[0].compare("midi") != 0) {
+//         return 1;
+//     }
 
-    int channel = 0;
-    if(pathTokenized.size() == 3) {
-        string token = pathTokenized[2];
-        stringstream(token) >> channel;
-    }
-    string statusString = &argv[0]->s;
-    int status = stringToStatus[&argv[0]->s] + channel;
-    msg.push_back((unsigned char)status);
-    for(int i = 1; i < argc; i++) {
-        msg.push_back((unsigned char)argv[i]->i);
-    }
+//     int channel = 0;
+//     if(pathTokenized.size() == 3) {
+//         string token = pathTokenized[2];
+//         stringstream(token) >> channel;
+//     }
+//     string statusString = &argv[0]->s;
+//     int status = stringToStatus[&argv[0]->s] + channel;
+//     msg.push_back((unsigned char)status);
+//     for(int i = 1; i < argc; i++) {
+//         msg.push_back((unsigned char)argv[i]->i);
+//     }
 
-    stringReplace(&pathTokenized[1]);
+//     stringReplace(&pathTokenized[1]);
 
-    map<string, RtMidiOut*> *m = (map<string, RtMidiOut*>*)user_data;
-    it = m->find(pathTokenized[1]);
-    if(it == m->end()) {
-        cout << "error : midiout device not found: " << pathTokenized[1] << endl;
-        return 1;
-    }
-    RtMidiOut* midi = it->second;
-    midi->sendMessage(&msg);
-    return 0;
-}
+//     map<string, RtMidiOut*> *m = (map<string, RtMidiOut*>*)user_data;
+//     it = m->find(pathTokenized[1]);
+//     if(it == m->end()) {
+//         cout << "error : midiout device not found: " << pathTokenized[1] << endl;
+//         return 1;
+//     }
+//     RtMidiOut* midi = it->second;
+//     midi->sendMessage(&msg);
+//     return 0;
+// }
 
 int main(int argc, char* argv[]) {
     vector<MidiInput*> inputs;
@@ -197,9 +207,9 @@ int main(int argc, char* argv[]) {
     stringstream ss;
     ss << opt->inputPort;
 
-    lo_server_thread st = lo_server_thread_new(ss.str().c_str(), error);
-    lo_server_thread_add_method(st, NULL, NULL, generic_handler, &portMap);
-    lo_server_thread_start(st);
+    // lo_server_thread st = lo_server_thread_new(ss.str().c_str(), error);
+    // lo_server_thread_add_method(st, NULL, NULL, generic_handler, &portMap);
+    // lo_server_thread_start(st);
 
     delete opt;
 

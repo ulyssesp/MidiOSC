@@ -20,23 +20,41 @@
 #include <sstream>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <string>
 #include <vector>
 
 #include "RtMidi.h"
+
+#if defined(__WINDOWS_MM__)
+
+#include "Ws2tcpip.h"
+#include "winsock2.h"
+#include "tinyosc.h"
+
+#else
+
 #include "lo/lo.h"
+
+#endif
 
 #include "midimessages.h"
 #include "midithreaddata.h"
 
 class MidiInput {
 	private:
+  
 		RtMidiIn* midiIn;
 		void stringReplace(std::string*, char);
 		
 	public:
 		MidiInput(int, int);
 		~MidiInput();
-		static void onMidi(double, std::vector<unsigned char>*, void*);
 		MidiThreadData threadData;
+		static void onMidi(double, std::vector<unsigned char>*, void*);
+    static void sendData(std::string message_type, std::vector<unsigned char> *message, MidiThreadData *data, std::string path, int bytes, unsigned char channel);
+#if defined(__WINDOWS_MM__)
+    static SOCKET fd;
+#endif
+
 };

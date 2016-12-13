@@ -18,12 +18,28 @@
 
 using namespace std;
 
+#if defined(__WINDOWS_MM__)
+SOCKET MidiInput::fd;
+#endif
+
 MidiInput::MidiInput(int p, int op) {
     try {
         midiIn = new RtMidiIn();
     } catch(RtMidiError &error) {
         error.printMessage();
     }
+
+#if defined(__WINDOWS_MM__)
+    WSADATA wsa;
+    printf("\nInitialising Winsock...");
+    if (WSAStartup(MAKEWORD(2,2),&wsa) != 0)
+      {
+        printf("Failed. Error Code : %d",WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+
+    MidiInput::fd = socket(AF_INET, SOCK_DGRAM, 0);
+#endif
 
     string portName;
     string* outputPort;
@@ -47,17 +63,70 @@ MidiInput::MidiInput(int p, int op) {
 
 MidiInput::~MidiInput() {
     delete this->midiIn;
+
+#if defined(__WINDOWS_MM__)
+    closesocket(MidiInput::fd);
+    WSACleanup();
+#endif
 }
 
 void MidiInput::stringReplace(string* str, char rep) {
     replace_if(str->begin(), str->end(), bind2nd(equal_to<char>(), ' '), rep);
 }
 
+#if defined(__WINDOWS_MM__)
+
+void MidiInput::sendData(string message_type, vector<unsigned char> *message, MidiThreadData *data, string path, int bytes, unsigned char channel) {
+  char buffer[1024];
+
+  int len = 0;
+
+  if(bytes == 0) {
+    len = tosc_writeMessage(buffer, sizeof(buffer), path.c_str(), "s", message_type.c_str());
+  }
+  else if (bytes == 2) {
+    len = tosc_writeMessage(buffer, sizeof(buffer), path.c_str(), "sii", message_type.c_str(), (int) message->at(1), (int) message->at(2));
+  }
+
+  cout << "Sending: " << buffer << endl;
+  cout << "Socket: " << fd << endl;
+
+  struct sockaddr_in addr;
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(9000);
+  addr.sin_addr.S_un.S_addr = inet_addr("localhost");
+
+  if (sendto(MidiInput::fd, buffer, len, 0, (struct sockaddr *) &addr, sizeof(addr)) == SOCKET_ERROR)
+  {
+    printf("sendto() failed with error code : %d" , WSAGetLastError());
+    exit(EXIT_FAILURE);
+  }
+}
+
+#else
+
+void MidiInput::sendData(string message_type, vector<unsigned char> *message, MidiThreadData *data, string path, int bytes, unsigned char channel) {
+  int j = 0;
+  lo_message m = lo_message_new();
+  lo_message_add_string(m, message_type.c_str());
+
+  for(j = 0; j < bytes; j++) {
+    lo_message_add_int32(m, (int)message->at(j + 1));
+  }
+
+  lo_address t = lo_address_new("localhost", data->outputPort.c_str());
+  lo_send_message(t, path.c_str(), m);
+  lo_address_free(t);
+  lo_message_free(m);
+}
+
+#endif
+
 void MidiInput::onMidi(double deltatime, vector<unsigned char> *message, void *userData) {
     unsigned int nBytes = 0;
     unsigned char channel = 0, status = 0;
     string message_type;
-    int j = 0, bytes = 0;
+    int bytes = 0;
 
     try {
         nBytes = message->size();
@@ -176,22 +245,11 @@ void MidiInput::onMidi(double deltatime, vector<unsigned char> *message, void *u
         message_type = "note_off";
     }
 
-    lo_message m = lo_message_new();
-    lo_message_add_string(m, message_type.c_str());
-
-    for(j = 0; j < bytes; j++) {
-        lo_message_add_int32(m, (int)message->at(j + 1));
-    }
-
-    lo_address t = lo_address_new("localhost", data->outputPort.c_str());
     stringstream path;
     path << "/midi/" << data->portName;
     if(bytes > 0) {
-        path << "/" << (int)channel;
+      path << "/" << (int)channel;
     }
-    string pathString;
-    pathString = path.str();
-    lo_send_message(t, pathString.c_str(), m);
-    lo_address_free(t);
-    lo_message_free(m);
+
+    sendData(message_type, message, data, path.str(), bytes, channel);
 }
