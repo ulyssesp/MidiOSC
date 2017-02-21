@@ -38,7 +38,11 @@ MidiInput::MidiInput(int p, int op) {
         exit(EXIT_FAILURE);
     }
 
-    MidiInput::fd = socket(AF_INET, SOCK_DGRAM, 0);
+    printf("\nInitialized. starting...");
+    if((MidiInput::fd = socket(AF_INET, SOCK_DGRAM, 0)) == SOCKET_ERROR){
+      printf("socket() failed with error code : %d" , WSAGetLastError());
+    }
+    printf("started");
 #endif
 
     string portName;
@@ -88,18 +92,15 @@ void MidiInput::sendData(string message_type, vector<unsigned char> *message, Mi
     len = tosc_writeMessage(buffer, sizeof(buffer), path.c_str(), "sii", message_type.c_str(), (int) message->at(1), (int) message->at(2));
   }
 
-  cout << "Sending: " << buffer << endl;
-  cout << "Socket: " << fd << endl;
-
   struct sockaddr_in addr;
+  memset((char *) &addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
   addr.sin_port = htons(9000);
-  addr.sin_addr.S_un.S_addr = inet_addr("localhost");
+  addr.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
 
   if (sendto(MidiInput::fd, buffer, len, 0, (struct sockaddr *) &addr, sizeof(addr)) == SOCKET_ERROR)
   {
     printf("sendto() failed with error code : %d" , WSAGetLastError());
-    exit(EXIT_FAILURE);
   }
 }
 
